@@ -2798,10 +2798,12 @@ GnssAdapter::updateSystemPowerState(PowerStateType systemPowerState) {
 
             case POWER_STATE_SUSPEND:
             case POWER_STATE_SHUTDOWN:
+            case POWER_STATE_DEEP_SLEEP_ENTRY:
                 LOC_LOGd("Suspending all active sessions -- powerState: %d", systemPowerState);
                 suspendSessions();
                 break;
             case POWER_STATE_RESUME:
+            case POWER_STATE_DEEP_SLEEP_EXIT:
                 LOC_LOGd("Re-starting all active sessions -- powerState: %d", systemPowerState);
                 restartSessions(false);
                 break;
@@ -3055,6 +3057,7 @@ GnssAdapter::handleEngineLockStatus(EngineLockState engineLockState) {
         mPendingMsgs.clear();
 
         if ((POWER_STATE_SUSPEND != mSystemPowerState) &&
+            (POWER_STATE_DEEP_SLEEP_ENTRY != mSystemPowerState) &&
             POWER_STATE_SHUTDOWN != mSystemPowerState) {
             restartSessions(false);
         }
@@ -3102,6 +3105,7 @@ GnssAdapter::handleEngineUpEvent()
                 mAdapter.mPendingMsgs.clear();
 
                 if ((POWER_STATE_SUSPEND != mAdapter.mSystemPowerState) &&
+                    (POWER_STATE_DEEP_SLEEP_ENTRY != mAdapter.mSystemPowerState) &&
                     POWER_STATE_SHUTDOWN != mAdapter.mSystemPowerState) {
                     mAdapter.restartSessions(true);
                 }
@@ -3120,6 +3124,7 @@ GnssAdapter::restartSessions(bool modemSSR)
              mSystemPowerState, modemSSR);
 
     if ((POWER_STATE_SUSPEND == mSystemPowerState) ||
+        (POWER_STATE_DEEP_SLEEP_ENTRY == mSystemPowerState) ||
         (POWER_STATE_SHUTDOWN == mSystemPowerState)) {
         LOC_LOGi("power state = %d, session not resumed", mSystemPowerState);
         return;
@@ -8330,6 +8335,7 @@ void GnssAdapter::readPPENtripConfig() {
     mDgnssState |= DGNSS_STATE_ENABLE_NTRIP_COMMAND;
     mDgnssState |= DGNSS_STATE_NO_NMEA_PENDING;
     mDgnssState &= ~DGNSS_STATE_NTRIP_SESSION_STARTED;
+    getSystemStatus()->eventNtripStarted(true);
 
     mStartDgnssNtripParams.nmea.clear();
     if (pNtripParams->requiresNmeaLocation) {
