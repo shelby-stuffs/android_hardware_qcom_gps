@@ -327,7 +327,7 @@ typedef enum {
     // support measurement corrections
     LOCATION_CAPABILITIES_MEASUREMENTS_CORRECTION_BIT       = (1<<13),
     // support Robust Location
-    LOCATION_CAPABILITIES_CONFORMITY_INDEX_BIT               = (1<<14),
+    LOCATION_CAPABILITIES_CONFORMITY_INDEX_BIT              = (1<<14),
     // support precise location edgnss
     LOCATION_CAPABILITIES_EDGNSS_BIT                        = (1<<15),
     // Modem supports Carrier Phase for Precise Positioning
@@ -338,7 +338,7 @@ typedef enum {
     LOCATION_CAPABILITIES_QWES_SV_POLYNOMIAL_BIT            = (1<<17),
     // Modem supports SV Ephemeris for tightly coupled external
     // PPE engines. This is a Standalone Feature.
-    LOCATION_CAPABILITIES_QWES_SV_EPHEMERIS_BIT            = (1<<18),
+    LOCATION_CAPABILITIES_QWES_SV_EPHEMERIS_BIT             = (1<<18),
     // Modem supports GNSS Single Frequency feature. This is a
     // Standalone Feature.
     LOCATION_CAPABILITIES_QWES_GNSS_SINGLE_FREQUENCY        = (1<<19),
@@ -372,7 +372,11 @@ typedef enum {
     // This mask indicates Antenna info is enabled.
     LOCATION_CAPABILITIES_ANTENNA_INFO                      = (1<<28),
     // This mask indicates qppe or qfe library is presented.
-    LOCATION_CAPABILITIES_PRECISE_LIB_PRESENT               = (1<<29)
+    LOCATION_CAPABILITIES_PRECISE_LIB_PRESENT               = (1<<29),
+    // This mask indicates modem 3GPP source is available.
+    LOCATION_CAPABILITIES_MODEM_3GPP_AVAIL                  = (1<<30),
+    // support GNSS bands
+    LOCATION_CAPABILITIES_GNSS_BANDS_BIT                    = (1ULL<<34)
 } LocationCapabilitiesBits;
 
 typedef uint8_t LocationQwesFeatureType;
@@ -417,6 +421,12 @@ typedef enum {
     // This indicates DLP feature is enabled by QESDK APP
     // license
     LOCATION_QWES_FEATURE_TYPE_DLP_QESDK,
+    // This indicates MLP feature is enabled by QESDK APP
+    // license
+    LOCATION_QWES_FEATURE_TYPE_MLP_QESDK,
+    // This indicates EP can do SSR2OSR correction data
+    // parseing
+    LOCATION_FEATURE_TYPE_CORR_DATA_PARSER,
     // Max value
     LOCATION_QWES_FEATURE_TYPE_MAX
 } LocationQwesFeatureTypes;
@@ -1123,12 +1133,12 @@ struct LocationOptions {
 };
 
 typedef enum {
-    GNSS_POWER_MODE_INVALID = 0,
-    GNSS_POWER_MODE_M1,  /* Improved Accuracy Mode */
-    GNSS_POWER_MODE_M2,  /* Normal Mode */
-    GNSS_POWER_MODE_M3,  /* Background Mode */
-    GNSS_POWER_MODE_M4,  /* Background Mode */
-    GNSS_POWER_MODE_M5   /* Background Mode */
+    GNSS_POWER_MODE_M1 = 1,  /* Improved Accuracy Mode */
+    GNSS_POWER_MODE_M2,      /* Normal Mode */
+    GNSS_POWER_MODE_M3,      /* Background Mode */
+    GNSS_POWER_MODE_M4,      /* Background Mode */
+    GNSS_POWER_MODE_M5,      /* Background Mode */
+    GNSS_POWER_MODE_DEFAULT = GNSS_POWER_MODE_M2
 } GnssPowerMode;
 
 typedef enum {
@@ -1144,14 +1154,34 @@ struct TrackingOptions : LocationOptions {
     SpecialReqType specialReq; /* Special Request type */
 
     inline TrackingOptions() :
-            LocationOptions(), powerMode(GNSS_POWER_MODE_INVALID), tbm(0),
+            LocationOptions(), powerMode(GNSS_POWER_MODE_DEFAULT), tbm(0),
             specialReq(SPECIAL_REQ_INVALID){}
-    inline TrackingOptions(uint32_t s, GnssPowerMode m, uint32_t t) :
-            LocationOptions(), powerMode(m), tbm(t),
-            specialReq(SPECIAL_REQ_INVALID){ LocationOptions::size = s; }
     inline TrackingOptions(const LocationOptions& options) :
-            LocationOptions(options), powerMode(GNSS_POWER_MODE_INVALID), tbm(0),
+            LocationOptions(options), powerMode(GNSS_POWER_MODE_DEFAULT), tbm(0),
             specialReq(SPECIAL_REQ_INVALID){}
+    inline bool equalsInTimeBasedRequest(const TrackingOptions& other) const {
+        return minInterval == other.minInterval && powerMode == other.powerMode &&
+                tbm == other.tbm && qualityLevelAccepted == other.qualityLevelAccepted;
+    }
+    inline bool multiplexWithForTimeBasedRequest(const TrackingOptions& other) {
+        bool updated = false;
+        if (other.minInterval < minInterval) {
+            updated = true;
+            minInterval = other.minInterval;
+        }
+        if (other.powerMode < powerMode) {
+            updated = true;
+            powerMode = other.powerMode;
+        }
+        if (other.tbm < tbm) {
+            updated = true;
+            tbm = other.tbm;
+        }
+        if (other.qualityLevelAccepted > qualityLevelAccepted) {
+            qualityLevelAccepted = other.qualityLevelAccepted;
+        }
+        return updated;
+    }
     inline void setLocationOptions(const LocationOptions& options) {
         size = sizeof(TrackingOptions);
         minInterval = options.minInterval;
@@ -1775,8 +1805,10 @@ typedef struct {
 typedef struct {
     uint32_t size;         // set to sizeof(GnssNmeaNotification)
     uint64_t timestamp;  // timestamp
+    LocOutputEngineType locOutputEngType; // engine type
     const char* nmea;    // nmea text
     uint32_t length;       // length of the nmea text
+    bool isSvNmea;         //  is NMEA from SV report or not
 } GnssNmeaNotification;
 
 typedef struct {
@@ -1798,9 +1830,17 @@ typedef struct {
     uint32_t count;        // number of items in GnssMeasurements array
     GnssMeasurementsData measurements[GNSS_MEASUREMENTS_MAX];
     GnssMeasurementsClock clock; // clock
+    bool isFullTracking;
     uint32_t agcCount;     // number of items in GnssMeasurementsAgc array
     GnssMeasurementsAgc gnssAgc[GNSS_BANDS_MAX];
 } GnssMeasurementsNotification;
+
+typedef struct {
+    uint32_t size;              // set to sizeof(GnssCapabilitiesNotification)
+    uint32_t count;             // number of SVs in the gnssSignalType array
+    GnssMeasurementsSignalType  gnssSignalType[GNSS_LOC_MAX_NUMBER_OF_SIGNAL_TYPES];
+    GnssSignalTypeMask gnssSupportedSignals; // GNSS Supported Signals
+} GnssCapabNotification;
 
 typedef uint32_t GnssSvId;
 
@@ -2768,6 +2808,13 @@ typedef std::function<void(
    const GnssDcReportInfo& dcReportInfo
 )> gnssDcReportCallback;
 
+/* Informs the framework of the list of GnssSignalTypes the GNSS HAL implementation
+   supports, optional can be NULL
+ */
+typedef std::function<void(
+    const GnssCapabNotification& gnssCapabNotification
+)> gnssSignalTypesCallback;
+
 typedef std::function<void(
 )> locationApiDestroyCompleteCallback;
 
@@ -2843,6 +2890,8 @@ typedef struct {
     locationSystemInfoCallback locationSystemInfoCb; // optional
     engineLocationsInfoCallback engineLocationsInfoCb; // optional
     gnssDcReportCallback gnssDcReportCb;               // optional
+    gnssNmeaCallback engineNmeaCb; // optional
+    gnssSignalTypesCallback gnssSignalTypesCb;          // optional
 } LocationCallbacks;
 
 typedef struct {
@@ -2963,5 +3012,30 @@ typedef struct {
     mgpOsnmaPublicKeyT   zPublicKey;  /* public key */
     mgpOsnmaMerkleTreeT  zMerkleTree; /* Merkle Tree Nodes */
 } mgpOsnmaPublicKeyAndMerkleTreeStruct;
+
+enum {
+    MODEM_QESDK_FEATURE_CARRIER_PHASE     = (1<<0),
+    MODEM_QESDK_FEATURE_SV_POLYNOMIALS    = (1<<1),
+    MODEM_QESDK_FEATURE_DGNSS             = (1<<2),
+    MODEM_QESDK_FEATURE_ROBUST_LOCATION   = (1<<3)
+} ModemGnssQesdkFeatureBits;
+
+typedef uint64_t ModemGnssQesdkFeatureMask;
+
+typedef void* QDgnssListenerHDL;
+
+typedef std::function<void(
+    bool    sessionActive
+)> QDgnssSessionActiveCb;
+
+typedef uint16_t QDgnss3GppSourceBitMask;
+#define QDGNSS_3GPP_SOURCE_UNKNOWN          0X00
+#define QDGNSS_3GPP_EP_PARSER_AVAIL         0X01
+#define QDGNSS_3GPP_SOURCE_AVAIL            0X02
+#define QDGNSS_3GPP_SOURCE_ACTIVE           0X04
+
+typedef std::function<void(
+    QDgnss3GppSourceBitMask    modem3GppSourceMask
+)> QDgnssModem3GppAvailCb;
 
 #endif /* LOCATIONDATATYPES_H */
