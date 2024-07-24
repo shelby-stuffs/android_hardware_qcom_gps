@@ -30,7 +30,7 @@
 /*
 Changes from Qualcomm Innovation Center are provided under the following license:
 
-Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted (subject to the limitations in the
@@ -107,7 +107,8 @@ Sock::Sock(int sid, const uint32_t maxTxSize) :
         srand48(time(NULL));
         sRandSeeded = true;
     }
-    snprintf(LOC_IPC_HEAD, sizeof(LOC_IPC_HEAD), "$MSG_CONCAT_HDR$%16.16lX$$%8.8X$", lrand48(), 0);
+    memset(LOC_IPC_HEAD, 0, sizeof(LOC_IPC_HEAD));
+    snprintf(LOC_IPC_HEAD, sizeof(LOC_IPC_HEAD), "$MSG_CONCAT_HDR$%16.16lX$", lrand48());
 }
 
 ssize_t Sock::send(const void *buf, uint32_t len, int flags, const struct sockaddr *destAddr,
@@ -139,7 +140,7 @@ ssize_t Sock::sendto(const void *buf, size_t len, int flags, const struct sockad
             /** Writting 10 instead of 9 bytes into tempBuf to prevent overwritting of "$" by null
                 character at last index of LOC_IPC_HEAD. tempBuff is large enough to prevent any
                 overflow */
-            snprintf(tempBuf + 33, sizeof(LOC_IPC_HEAD) - 32, "%8.8X$", len);
+            snprintf(tempBuf + 33, sizeof(LOC_IPC_HEAD) - 32, "%8.8X$", (unsigned int)len);
             for (size_t offset = 0; offset < len && rtv > 0; offset += rtv - sizeof(LOC_IPC_HEAD)) {
                 size_t thisLen = min(len - offset, (size_t)mMaxTxSize);
                 memcpy(tempBuf+sizeof(LOC_IPC_HEAD), (char*)buf + offset, thisLen);

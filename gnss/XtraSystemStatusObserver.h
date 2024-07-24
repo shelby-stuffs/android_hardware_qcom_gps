@@ -30,7 +30,7 @@
 /*
 Changes from Qualcomm Innovation Center are provided under the following license:
 
-Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted (subject to the limitations in the
@@ -111,6 +111,7 @@ public :
         mIpc.stopNonBlockingListening();
     }
 
+    void init();
     // IDataItemObserver overrides
     inline virtual void getName(string& name);
     virtual void notify(const unordered_set<IDataItemCore*>& dlist);
@@ -121,6 +122,7 @@ public :
     bool updateTac(const string& tac);
     bool updateMccMnc(const string& mccmncCountry);
     bool updateXtraThrottle(const bool enabled);
+    bool updatePowerState(const PowerStateType powerState);
     inline const MsgTask* getMsgTask() { return mMsgTask; }
     void subscribe(bool yes);
     bool notifySessionStart();
@@ -147,6 +149,7 @@ private:
     string mTac;
     string mMccmnc;
     bool mXtraThrottle;
+    PowerStateType mPowerState;
     bool mReqStatusReceived;
     bool mIsConnectivityStatusKnown;
     shared_ptr<LocIpcSender> mXtraSender;

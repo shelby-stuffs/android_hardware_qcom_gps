@@ -30,7 +30,7 @@
  /*
  Changes from Qualcomm Innovation Center are provided under the following license:
 
- Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ Copyright (c) 2022, 2023 Qualcomm Innovation Center, Inc. All rights reserved.
 
  Redistribution and use in source and binary forms, with or without
  modification, are permitted (subject to the limitations in the
@@ -107,14 +107,12 @@ class LocAdapterBase;
 struct LocSsrMsg;
 struct LocOpenMsg;
 
-typedef struct
-{
+typedef struct {
     uint32_t accumulatedDistance;
     uint32_t numOfBatchedPositions;
 } LocApiBatchData;
 
-typedef struct
-{
+typedef struct {
     uint32_t hwId;
 } LocApiGeofenceData;
 
@@ -175,10 +173,10 @@ protected:
     }
     bool isInSession();
     const LOC_API_ADAPTER_EVENT_MASK_T mExcludedMask;
-    bool isMaster();
     EngineLockState mEngineLockState;
 
 public:
+    bool isMaster();
     inline void sendMsg(const LocMsg* msg) const {
         if (nullptr != mMsgTask) {
             mMsgTask->sendMsg(msg);
@@ -223,6 +221,7 @@ public:
                           const char* url3, const int maxlength);
     void reportLocationSystemInfo(const LocationSystemInfo& locationSystemInfo);
     void reportDcMessage(const GnssDcReportInfo& dcReport);
+    void reportSignalTypeCapabilities(const GnssCapabNotification& gnssCapabNotification);
     void requestXtraData();
     void requestTime();
     void requestLocation();
@@ -262,6 +261,7 @@ public:
     void reportLocations(Location* locations, size_t count, BatchingMode batchingMode);
     void reportCompletedTrips(uint32_t accumulated_distance);
     void handleBatchStatusEvent(BatchingStatus batchStatus);
+    void reportModemGnssQesdkFeatureStatus(const ModemGnssQesdkFeatureMask& mask);
 
     // downward calls
     virtual void* getSibling();
@@ -402,9 +402,12 @@ public:
 
     virtual void configPrecisePositioning(uint32_t featureId, bool enable,
             std::string appHash, LocApiResponse* adapterResponse=nullptr);
+    virtual void configMerkleTree(mgpOsnmaPublicKeyAndMerkleTreeStruct* merkleTree,
+            LocApiResponse* adapterResponse=nullptr);
+    virtual void configOsnmaEnablement(bool enable, LocApiResponse* adapterResponse=nullptr);
 };
 
-class ElapsedRealtimeEstimator {
+class RealtimeEstimator {
     typedef struct {
         GPSTimeStruct gpsTime;
         int64_t qtimerTick;
@@ -425,7 +428,7 @@ private:
     GpsTimeQtimerTickPair mTimePairMeasReport;
 
 public:
-    inline ElapsedRealtimeEstimator(int64_t travelTimeNanosEstimate) :
+    inline RealtimeEstimator(int64_t travelTimeNanosEstimate) :
             mInitialTravelTime(travelTimeNanosEstimate) {
         reset();
     }
@@ -434,8 +437,9 @@ public:
     inline int64_t getElapsedRealtimeUncNanos() { return 5000000;}
     void reset();
     static int64_t getElapsedRealtimeQtimer(int64_t qtimerTicksAtOrigin);
-    bool getElapsedRealtimeForGpsTime(const GpsLocationExtended& locationExtended,
-                                      int64_t &elapsedTime, float & elpasedTimeUnc);
+    bool fillAdditionalTimestamps(const GpsLocationExtended& locationExtended,
+                                      int64_t &elapsedTime, float & elpasedTimeUnc,
+                                      uint64_t &gptpTime, bool &gPTPValidity);
     void saveGpsTimeAndQtimerPairInPvtReport(const GpsLocationExtended& locationExtended);
     void saveGpsTimeAndQtimerPairInMeasReport(const GnssSvMeasurementSet& svMeasurementSet);
     static bool getCurrentTime(struct timespec& currentTime, int64_t& sinceBootTimeNanos);

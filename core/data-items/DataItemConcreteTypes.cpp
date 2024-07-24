@@ -30,7 +30,7 @@
 /*
 Changes from Qualcomm Innovation Center are provided under the following license:
 
-Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted (subject to the limitations in the
@@ -62,6 +62,8 @@ IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
 OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
 IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+
+#define LOG_TAG "DataItemConcreteTypes"
 
 #include "DataItemConcreteTypes.h"
 #include <inttypes.h>
@@ -145,6 +147,8 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define PRECISE_LOCATION_ENABLED_FIELD_NAME "PRECISE_LOCATION_ENABLED"
 #define TRACKING_STARTED_FIELD_NAME "TRACKING_STARTED"
 #define NTRIP_STARTED_FIELD_NAME "NTRIP_STARTED"
+#define NLP_STARTED_FIELD_NAME "NLP_SESSION_STARTED"
+#define LOC_FEATURE_STATUS_FIELD_NAME "LOC_FEATURE_STATUS"
 
 namespace loc_core
 {
@@ -911,4 +915,60 @@ int32_t NtripStartedDataItem::copyFrom(IDataItemCore* src) {
     return result;
 }
 
+void LocFeatureStatusDataItem::stringify(string& valueStr) {
+    int32_t result = 0;
+    ENTRY_LOG();
+    do {
+        STRINGIFY_ERROR_CHECK_AND_DOWN_CAST(
+                LocFeatureStatusDataItem, LOC_FEATURE_STATUS_DATA_ITEM_ID);
+        valueStr.clear ();
+        valueStr += LOC_FEATURE_STATUS_FIELD_NAME;
+        valueStr += ": {";
+        for (int item : d->mFids) {
+            valueStr += std::to_string(item) + ", ";
+        }
+        valueStr += "}";
+    } while (0);
+    EXIT_LOG_WITH_ERROR("%d", result);
+}
+
+int32_t LocFeatureStatusDataItem::copyFrom(IDataItemCore* src) {
+    int32_t result = -1;
+    ENTRY_LOG();
+    do {
+        COPIER_ERROR_CHECK_AND_DOWN_CAST(
+                LocFeatureStatusDataItem, LOC_FEATURE_STATUS_DATA_ITEM_ID);
+        s->mFids = d->mFids;
+        result = 0;
+    } while (0);
+    EXIT_LOG("%d", result);
+    return result;
+}
+
+void NlpSessionStartedDataItem::stringify(string& valueStr) {
+    int32_t result = 0;
+    ENTRY_LOG();
+    do {
+        STRINGIFY_ERROR_CHECK_AND_DOWN_CAST(
+                NlpSessionStartedDataItem, NETWORK_POSITIONING_STARTED_DATA_ITEM_ID);
+        valueStr.clear ();
+        valueStr += NLP_STARTED_FIELD_NAME;
+        valueStr += ": ";
+        valueStr += (d->mNlpStarted) ? ("true") : ("false");
+    } while (0);
+    EXIT_LOG_WITH_ERROR("%d", result);
+}
+
+int32_t NlpSessionStartedDataItem::copyFrom(IDataItemCore* src) {
+    int32_t result = -1;
+    ENTRY_LOG();
+    do {
+        COPIER_ERROR_CHECK_AND_DOWN_CAST(
+                NlpSessionStartedDataItem, NETWORK_POSITIONING_STARTED_DATA_ITEM_ID);
+        s->mNlpStarted = d->mNlpStarted;
+        result = 0;
+    } while (0);
+    EXIT_LOG("%d", result);
+    return result;
+}
 } //namespace loc_core

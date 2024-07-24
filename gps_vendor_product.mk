@@ -26,4 +26,23 @@ endif #TARGET_BOARD_AUTO
 PRODUCT_PACKAGES += android.hardware.gnss-aidl-impl-qti
 PRODUCT_PACKAGES += android.hardware.gnss-aidl-service-qti
 
+## Feature flags - self contained FR in gps module
+# Enable NHz location feature. Default is false.
+# Set this flag to true to enable the NHz location feature.
+FEATURE_LOCATION_NHZ := false
+
+# Soong Namespace - Keys and values
+# Enable/Disable NHz location feature
+$(call soong_config_set, qtilocation, feature_nhz, false)
+# Enable/disable location android automotive location features. Default is false.
+$(call soong_config_set, qtilocation, feature_locauto, false)
+
+ifeq ($(FEATURE_LOCATION_NHZ),true)
+    $(call soong_config_set, qtilocation, feature_nhz, true)
+endif
+
+ifeq ($(strip $(TARGET_BOARD_AUTO)),true)
+    $(call soong_config_set, qtilocation, feature_locauto, true)
+endif #TARGET_BOARD_AUTO
+
 endif # ifneq ($(BOARD_VENDOR_QCOM_GPS_LOC_API_HARDWARE),)

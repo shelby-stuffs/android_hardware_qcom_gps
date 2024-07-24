@@ -250,7 +250,7 @@ SIDE EFFECTS
    N/A
 ===========================================================================*/
 int loc_fill_conf_item(char* input_buf,
-                       const loc_param_s_type* config_table,
+                       const loc_param_s_type config_table[],
                        uint32_t table_length, uint16_t string_len = LOC_MAX_PARAM_STRING)
 {
     int ret = 0;
@@ -328,7 +328,7 @@ RETURN VALUE
 SIDE EFFECTS
    N/A
 ===========================================================================*/
-int loc_read_conf_r_long(FILE *conf_fp, const loc_param_s_type* config_table,
+int loc_read_conf_r_long(FILE *conf_fp, const loc_param_s_type config_table[],
                          uint32_t table_length, uint16_t string_len)
 {
     int ret=0;
@@ -392,7 +392,7 @@ SIDE EFFECTS
    N/A
 ===========================================================================*/
 int loc_update_conf_long(const char* conf_data, int32_t length,
-                         const loc_param_s_type* config_table,
+                         const loc_param_s_type config_table[],
                          uint32_t table_length, uint16_t string_len)
 {
     int ret = -1;
@@ -449,7 +449,7 @@ RETURN VALUE
 SIDE EFFECTS
    N/A
 ===========================================================================*/
-void loc_read_conf_long(const char* conf_file_name, const loc_param_s_type* config_table,
+void loc_read_conf_long(const char* conf_file_name, const loc_param_s_type config_table[],
                         uint32_t table_length, uint16_t string_len)
 {
     FILE *conf_fp = NULL;
@@ -1087,7 +1087,10 @@ int loc_read_process_conf(const char* conf_file_name, uint32_t * process_count_p
                             sizeof(child_proc[j].args[index]));
                 }
             }
-
+            // disable dynamic launch for AUTO SP
+#if defined (USE_GLIB) && !defined (OPENWRT_BUILD)
+            conf.launch_trigger_mask = 0;
+#endif
             // Send auto shutdown feature status, to mute shutdown timer if auto shutdown
             // feature is disable
             if (conf.launch_trigger_mask) {

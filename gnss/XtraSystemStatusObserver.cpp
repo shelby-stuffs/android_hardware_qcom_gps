@@ -30,7 +30,7 @@
 /*
 Changes from Qualcomm Innovation Center are provided under the following license:
 
-Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted (subject to the limitations in the
@@ -192,8 +192,12 @@ XtraSystemStatusObserver::XtraSystemStatusObserver(GnssAdapter* adapter,
         mRegisterForXtraStatus(false),
         mDelayLocTimer(*mXtraSender, *mDgnssSender) {
     subscribe(true);
+}
+
+void XtraSystemStatusObserver::init() {
+    locUtilWaitForDir(SOCKET_DIR_LOCATION);
     auto recver = LocIpc::getLocIpcLocalRecver(
-            make_shared<XtraIpcListener>(sysStatObs, msgTask, *this),
+            make_shared<XtraIpcListener>(mSystemStatusObsrvr, mMsgTask, *this),
             LOC_IPC_HAL);
     mIpc.startNonBlockingListening(recver);
     mDelayLocTimer.start(100 /*.1 sec*/,  false);
@@ -299,6 +303,46 @@ bool XtraSystemStatusObserver::notifySessionStart() {
     }
 
     string s = "sessionstart";
+    return ( LocIpc::send(*mXtraSender, (const uint8_t*)s.data(), s.size()) );
+}
+
+bool XtraSystemStatusObserver::updatePowerState(const PowerStateType powerState) {
+
+    if (mPowerState == powerState) {
+        return true;
+    }
+
+    mPowerState = powerState;
+
+    if (!mReqStatusReceived) {
+        return true;
+    }
+
+    int32_t pState;
+    switch (mPowerState) {
+        case POWER_STATE_UNKNOWN:
+            pState = 0;
+            break;
+        case POWER_STATE_DEEP_SLEEP_ENTRY:
+        case POWER_STATE_SUSPEND:
+            pState = 1;
+            break;
+        case POWER_STATE_DEEP_SLEEP_EXIT:
+        case POWER_STATE_RESUME:
+            pState = 2;
+            break;
+        case POWER_STATE_SHUTDOWN:
+            pState = 3;
+            break;
+        default:
+            LOC_LOGd("Invalid power state %d", mPowerState);
+            break;
+    };
+
+    stringstream ss;
+    ss <<  "powerstate";
+    ss << " " << pState;
+    string s = ss.str();
     return ( LocIpc::send(*mXtraSender, (const uint8_t*)s.data(), s.size()) );
 }
 
@@ -432,6 +476,8 @@ bool XtraSystemStatusObserver::updateXtraConfig(bool enable, const XtraConfigPar
         ss << configParams.xtraIntegrityDownloadEnable << endl;
         ss << configParams.xtraIntegrityDownloadIntervalMinute << endl;
         ss << configParams.xtraDaemonDebugLogLevel << endl;
+        ss << configParams.ntsKeServerURL << endl;
+        ss << configParams.xtraDaemonDiagLoggingStatus << endl;
     }
 
     string s = ss.str();

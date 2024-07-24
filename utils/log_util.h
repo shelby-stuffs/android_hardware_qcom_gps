@@ -30,7 +30,7 @@
  /*
  Changes from Qualcomm Innovation Center are provided under the following license:
 
- Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
 
  Redistribution and use in source and binary forms, with or without
  modification, are permitted (subject to the limitations in the
@@ -91,11 +91,12 @@
 // LE targets with no logcat support
 #if defined(FEATURE_EXTERNAL_AP) || defined(USE_SYSLOG_LOGGING)
 #include <syslog.h>
-#define ALOGE(...) syslog(LOG_ERR,     "LOC_LOGE: " __VA_ARGS__);
-#define ALOGW(...) syslog(LOG_WARNING, "LOC_LOGW: " __VA_ARGS__);
-#define ALOGI(...) syslog(LOG_NOTICE,  "LOC_LOGI: " __VA_ARGS__);
-#define ALOGD(...) syslog(LOG_DEBUG,   "LOC_LOGD: " __VA_ARGS__);
-#define ALOGV(...) syslog(LOG_NOTICE,  "LOC_LOGV: " __VA_ARGS__);
+#define ALOGE(format, x...) syslog(LOG_ERR,     "E/%s (%d): " format, LOG_TAG, getpid(), ##x);
+#define ALOGW(format, x...) syslog(LOG_WARNING, "W/%s (%d): " format, LOG_TAG, getpid(), ##x);
+#define ALOGI(format, x...) syslog(LOG_NOTICE,  "I/%s (%d): " format, LOG_TAG, getpid(), ##x);
+#define ALOGD(format, x...) syslog(LOG_DEBUG,   "D/%s (%d): " format, LOG_TAG, getpid(), ##x);
+#define ALOGV(format, x...) syslog(LOG_NOTICE,  "V/%s (%d): " format, LOG_TAG, getpid(), ##x);
+#define ALOGA(format, x...) syslog(LOG_NOTICE,  "A/%s (%d): " format, LOG_TAG, getpid(), ##x);
 #else /* FEATURE_EXTERNAL_AP */
 #define TS_PRINTF(format, x...)                                  \
 {                                                                \
@@ -261,13 +262,14 @@ extern void log_buffer_insert(char *str, unsigned long buf_size, int level);
 static int LOCAL_LOG_LEVEL = -1;
 #define IF_LOC_LOG(x) \
     if (((LOCAL_LOG_LEVEL == -1 && (LOCAL_LOG_LEVEL = get_tag_log_level(LOG_TAG)) >= x) ||\
-            LOCAL_LOG_LEVEL >= x) && LOCAL_LOG_LEVEL <= 5)
+            LOCAL_LOG_LEVEL >= x) && LOCAL_LOG_LEVEL <= 6)
 
 #define IF_LOC_LOGE IF_LOC_LOG(1)
 #define IF_LOC_LOGW IF_LOC_LOG(2)
 #define IF_LOC_LOGI IF_LOC_LOG(3)
 #define IF_LOC_LOGD IF_LOC_LOG(4)
 #define IF_LOC_LOGV IF_LOC_LOG(5)
+#define IF_LOC_LOGA IF_LOC_LOG(6)
 
 #define LOC_LOGE(...)                                                   \
     IF_LOC_LOGE {                                                       \
@@ -317,6 +319,17 @@ static int LOCAL_LOG_LEVEL = -1;
     IF_LOC_LOGV {                                                       \
         ALOGV(__VA_ARGS__);                                             \
         INSERT_BUFFER(LOG_NDEBUG, 4, __VA_ARGS__);                      \
+        IF_QXDM_LOG_ENABLE {                                            \
+            char buf[MAX_QXDM_STRING];                                  \
+            snprintf(buf, MAX_QXDM_STRING, __VA_ARGS__);                \
+            loc_logger.QXDMF3(MSG_QXDM_LOW, buf);                       \
+        }                                                               \
+    }
+
+#define LOC_LOGA(...)                                                   \
+    IF_LOC_LOGA {                                                       \
+        ALOGV(__VA_ARGS__);                                             \
+        INSERT_BUFFER(LOG_NDEBUG, 5, __VA_ARGS__);                      \
         IF_QXDM_LOG_ENABLE {                                            \
             char buf[MAX_QXDM_STRING];                                  \
             snprintf(buf, MAX_QXDM_STRING, __VA_ARGS__);                \
@@ -376,6 +389,16 @@ static int LOCAL_LOG_LEVEL = -1;
         }                                                               \
     }
 
+#define LOC_LOGA(...)                                                   \
+    IF_LOC_LOGA {                                                       \
+        ALOGV(__VA_ARGS__);                                             \
+        IF_QXDM_LOG_ENABLE {                                            \
+            char buf[MAX_QXDM_STRING];                                  \
+            snprintf(buf, MAX_QXDM_STRING, __VA_ARGS__);                \
+            loc_logger.QXDMF3(MSG_QXDM_LOW, buf);                       \
+        }                                                               \
+    }
+
 #endif /* DEBUG_DMN_LOC_API */
 
 /*=============================================================================
@@ -396,6 +419,7 @@ static int LOCAL_LOG_LEVEL = -1;
     } while(0)
 
 #define LOC_LOG_HEAD(fmt) "%s:%d] " fmt
+#define LOC_LOGa(fmt,...) LOC_LOGA(LOC_LOG_HEAD(fmt), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define LOC_LOGv(fmt,...) LOC_LOGV(LOC_LOG_HEAD(fmt), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define LOC_LOGw(fmt,...) LOC_LOGW(LOC_LOG_HEAD(fmt), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define LOC_LOGi(fmt,...) LOC_LOGI(LOC_LOG_HEAD(fmt), __FUNCTION__, __LINE__, ##__VA_ARGS__)
@@ -406,14 +430,15 @@ static int LOCAL_LOG_LEVEL = -1;
 #define LOG_V(ID, WHAT, SPEC, VAL) LOG_(LOC_LOGV, ID, WHAT, SPEC, VAL)
 #define LOG_E(ID, WHAT, SPEC, VAL) LOG_(LOC_LOGE, ID, WHAT, SPEC, VAL)
 #define LOG_D(ID, WHAT, SPEC, VAL) LOG_(LOC_LOGD, ID, WHAT, SPEC, VAL)
+#define LOG_A(ID, WHAT, SPEC, VAL) LOG_(LOC_LOGA, ID, WHAT, SPEC, VAL)
 
-#define ENTRY_LOG() LOG_V(ENTRY_TAG, __FUNCTION__, %s, "")
+#define ENTRY_LOG() LOG_A(ENTRY_TAG, __FUNCTION__, %s, "")
 #define EXIT_LOG(SPEC, VAL) LOG_V(EXIT_TAG, __FUNCTION__, SPEC, VAL)
 #define EXIT_LOG_WITH_ERROR(SPEC, VAL)                       \
     if (VAL != 0) {                                          \
         LOG_E(EXIT_ERROR_TAG, __FUNCTION__, SPEC, VAL);          \
     } else {                                                 \
-        LOG_V(EXIT_TAG, __FUNCTION__, SPEC, VAL);                \
+        LOG_A(EXIT_TAG, __FUNCTION__, SPEC, VAL);                \
     }
 
 
